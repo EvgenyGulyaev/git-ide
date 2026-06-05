@@ -40,59 +40,66 @@ export class GitService {
   }
 
   async getBranches(): Promise<Branch[]> {
-    const raw = await this.exec(['branch', '-vv', '--no-color']);
-    return this.parseBranchesWithTracking(raw);
-  }
-
-  private parseBranchesWithTracking(raw: string): Branch[] {
     const branches: Branch[] = [];
-    const lines = raw.split('\n').filter(l => l.trim());
 
-    for (const line of lines) {
-      const current = line.startsWith('*');
-      const clean = line.replace(/^\*?\s+/, '');
+    // Get local branches
+    const localRaw = await this.exec(['branch', '--no-color']);
+    const localLines = localRaw.split('\n').filter(l => l.trim());
 
-      // Parse: branch-name hash [remote-branch: ahead N, behind M] commit message
-      // Example: main abc1234 [origin/main: ahead 1] Fix work with commit
-      const match = clean.match(/^(\S+)\s+(\S+)\s+\[([^\]]+)\]\s*(.*)$/);
-      if (!match) {
-        // No tracking info - just branch and hash
-        const simpleMatch = clean.match(/^(\S+)\s+(\S+)\s*(.*)$/);
-        if (simpleMatch) {
-          const [, name, hash, message] = simpleMatch;
-          const isRemote = name.startsWith('remotes/');
-          branches.push({
-            name: isRemote ? name.replace('remotes/', '') : name,
-            current,
-            remote: isRemote,
-          });
+    // Get tracking info for all branches
+    const trackingRaw = await this.exec([
+      'for-each-ref',
+      '--format=%(refname:short) %(upstream:short) %(upstream:track)',
+      'refs/heads/',
+    ]);
+
+    const trackingMap = new Map<string, { upstream: string; ahead: number; behind: number }>();
+    for (const line of trackingRaw.split('\n').filter(l => l.trim())) {
+      // Format: main origin/main [ahead 1]
+      const match = line.match(/^(\S+)\s+(\S+)\s*(.*)$/);
+      if (match) {
+        const [, name, upstream, trackStr] = match;
+        let ahead = 0;
+        let behind = 0;
+
+        if (trackStr) {
+          const aheadMatch = trackStr.match(/ahead (\d+)/);
+          if (aheadMatch) ahead = parseInt(aheadMatch[1]);
+          const behindMatch = trackStr.match(/behind (\d+)/);
+          if (behindMatch) behind = parseInt(behindMatch[1]);
         }
-        continue;
+
+        trackingMap.set(name, { upstream, ahead, behind });
       }
+    }
 
-      const [, name, hash, tracking, message] = match;
-
-      let upstream: string | undefined;
-      let ahead = 0;
-      let behind = 0;
-
-      // Parse tracking: origin/main: ahead 1, behind 2
-      const trackingMatch = tracking.match(/^([^:]+)(?::\s*ahead\s*(\d+))?(?:,\s*behind\s*(\d+))?$/);
-      if (trackingMatch) {
-        upstream = trackingMatch[1];
-        ahead = parseInt(trackingMatch[2] || '0');
-        behind = parseInt(trackingMatch[3] || '0');
-      }
-
-      const isRemote = name.startsWith('remotes/');
+    // Build local branches
+    for (const line of localLines) {
+      const current = line.startsWith('*');
+      const name = line.replace(/^\*?\s+/, '');
+      const tracking = trackingMap.get(name);
 
       branches.push({
-        name: isRemote ? name.replace('remotes/', '') : name,
+        name,
         current,
-        remote: isRemote,
-        upstream,
-        ahead,
-        behind,
+        remote: false,
+        upstream: tracking?.upstream,
+        ahead: tracking?.ahead || 0,
+        behind: tracking?.behind || 0,
+      });
+    }
+
+    // Get remote branches
+    const remoteRaw = await this.exec(['branch', '-r', '--no-color']);
+    const remoteLines = remoteRaw.split('\n').filter(l => l.trim());
+    for (const line of remoteLines) {
+      const name = line.trim().replace(/^origin\//, '');
+      if (name === 'HEAD' || name.includes('->')) continue;
+
+      branches.push({
+        name,
+        current: false,
+        remote: true,
       });
     }
 

@@ -33,6 +33,11 @@
           "type": "webview"
         },
         {
+          "id": "git-ide.changesBadge",
+          "name": "Changes Badge",
+          "when": "false"
+        },
+        {
           "id": "git-ide.branches",
           "name": "Branches"
         },
@@ -58,7 +63,8 @@
       },
       {
         "command": "git-ide.checkoutBranch",
-        "title": "Checkout Branch"
+        "title": "Checkout Branch",
+        "icon": "$(arrow-right)"
       },
       {
         "command": "git-ide.createBranch",
@@ -238,22 +244,22 @@
         },
         {
           "command": "git-ide.togglePinBranch",
-          "when": "view == git-ide.branches",
+          "when": "view == git-ide.branches && (viewItem == branch || viewItem == pinnedBranch)",
           "group": "inline@1"
         },
         {
           "command": "git-ide.pushBranch",
-          "when": "view == git-ide.branches && viewItem == branch",
+          "when": "view == git-ide.branches && (viewItem == branch || viewItem == pinnedBranch) && viewItem != folder",
           "group": "inline@2"
         },
         {
           "command": "git-ide.fetchBranch",
-          "when": "view == git-ide.branches && viewItem == branch",
+          "when": "view == git-ide.branches && (viewItem == branch || viewItem == pinnedBranch) && viewItem != folder",
           "group": "inline@3"
         },
         {
           "command": "git-ide.checkoutBranch",
-          "when": "view == git-ide.branches",
+          "when": "view == git-ide.branches && (viewItem == branch || viewItem == pinnedBranch) && viewItem != folder",
           "group": "inline@4"
         },
         {

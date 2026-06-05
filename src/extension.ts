@@ -3,6 +3,7 @@ import { GitService } from './git/service';
 import { BranchesProvider } from './views/branches';
 import { CommitsProvider } from './views/commits';
 import { ChangesViewProvider } from './views/changes';
+import { ChangesBadgeProvider } from './views/changesBadge';
 import { FileHistoryProvider, LineHistoryProvider } from './views/fileHistory';
 import { DiffViewerPanel } from './views/diff';
 import { GitGraphPanel } from './views/gitGraph';
@@ -52,23 +53,22 @@ export function activate(context: vscode.ExtensionContext) {
     changesViewProvider,
   );
 
-  // Badge for changed files count
-  const changesBadge = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
-  changesBadge.text = '$(git-changes)';
-  changesBadge.tooltip = 'Changed files';
-  changesBadge.hide();
-
-  changesViewProvider.onDidChangeFiles((count) => {
-    if (count > 0) {
-      changesBadge.text = `$(git-changes) ${count}`;
-      changesBadge.show();
-    } else {
-      changesBadge.hide();
-    }
+  // Badge for changed files count on Activity Bar
+  const changesBadgeProvider = new ChangesBadgeProvider();
+  const changesBadgeView = vscode.window.createTreeView('git-ide.changesBadge', {
+    treeDataProvider: changesBadgeProvider,
   });
 
-  // Trigger initial badge update
-  changesViewProvider.refresh();
+  changesViewProvider.onDidChangeFiles((count) => {
+    changesBadgeView.badge = count > 0
+      ? { value: count, tooltip: `${count} changed files` }
+      : undefined;
+  });
+
+  // Trigger initial badge update after a short delay
+  setTimeout(() => {
+    changesViewProvider.refresh();
+  }, 1000);
 
   const branchesView = vscode.window.createTreeView('git-ide.branches', {
     treeDataProvider: branchesProvider,
@@ -277,7 +277,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     changesView,
-    changesBadge,
+    changesBadgeView,
     branchesView,
     commitsView,
     fileHistoryView,

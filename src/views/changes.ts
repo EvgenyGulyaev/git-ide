@@ -67,6 +67,12 @@ export class ChangesViewProvider implements vscode.WebviewViewProvider {
             await vscode.commands.executeCommand('vscode.open', uri);
           }
           break;
+        case 'getLastMessage':
+          const lastMsg = await this.git.getLastCommitMessage();
+          if (this._view) {
+            this._view.webview.postMessage({ command: 'setLastMessage', message: lastMsg });
+          }
+          break;
       }
     });
   }
@@ -296,7 +302,7 @@ export class ChangesViewProvider implements vscode.WebviewViewProvider {
     <textarea id="message" placeholder="Commit message..."></textarea>
     <div class="commit-options">
       <label>
-        <input type="checkbox" id="amend" /> Amend
+        <input type="checkbox" id="amend" onchange="toggleAmend()" /> Amend
       </label>
     </div>
     <div class="commit-buttons">
@@ -307,6 +313,30 @@ export class ChangesViewProvider implements vscode.WebviewViewProvider {
 
   <script>
     const vscode = acquireVsCodeApi();
+    let lastMessage = '';
+
+    // Listen for messages from extension
+    window.addEventListener('message', (event) => {
+      if (event.data.command === 'setLastMessage') {
+        lastMessage = event.data.message;
+        const amend = document.getElementById('amend');
+        const textarea = document.getElementById('message');
+        if (amend.checked) {
+          textarea.value = lastMessage;
+        }
+      }
+    });
+
+    function toggleAmend() {
+      const amend = document.getElementById('amend');
+      const textarea = document.getElementById('message');
+      if (amend.checked) {
+        // Request last commit message
+        vscode.postMessage({ command: 'getLastMessage' });
+      } else {
+        textarea.value = '';
+      }
+    }
 
     function toggleStaging(path, staged) {
       vscode.postMessage({ command: staged ? 'stage' : 'unstage', path });
