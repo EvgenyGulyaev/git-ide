@@ -67,6 +67,9 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  // Trigger initial badge update
+  changesViewProvider.refresh();
+
   const branchesView = vscode.window.createTreeView('git-ide.branches', {
     treeDataProvider: branchesProvider,
   });
@@ -113,6 +116,8 @@ export function activate(context: vscode.ExtensionContext) {
       branchesProvider.togglePin(item);
     }),
     vscode.commands.registerCommand('git-ide.unpinBranch', (item) => branchesProvider.togglePin(item)),
+    vscode.commands.registerCommand('git-ide.pushBranch', (item) => branchesProvider.pushBranch(item)),
+    vscode.commands.registerCommand('git-ide.fetchBranch', (item) => branchesProvider.fetchBranch(item)),
 
     // Git operations
     vscode.commands.registerCommand('git-ide.pull', async () => {

@@ -230,4 +230,24 @@ export class BranchesProvider implements vscode.TreeDataProvider<TreeItem> {
       vscode.window.showErrorMessage(`Pull failed: ${error.message}`);
     }
   }
+
+  async pushBranch(item: BranchItem): Promise<void> {
+    try {
+      await this.git.pushBranch(item.branch.name);
+      this.refresh();
+      vscode.window.showInformationMessage(`Pushed ${item.branch.name}`);
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`Push failed: ${error.message}`);
+    }
+  }
+
+  async fetchBranch(item: BranchItem): Promise<void> {
+    try {
+      await this.git.fetchBranch(item.branch.name);
+      this.refresh();
+      vscode.window.showInformationMessage(`Fetched ${item.branch.name}`);
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`Fetch failed: ${error.message}`);
+    }
+  }
 }

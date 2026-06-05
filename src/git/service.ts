@@ -52,9 +52,23 @@ export class GitService {
       const current = line.startsWith('*');
       const clean = line.replace(/^\*?\s+/, '');
 
-      // Parse: branch-name [remote-branch: ahead N, behind M] commit message
-      const match = clean.match(/^(\S+)\s+(\S+)\s+(?:\[(.+?)\]\s+)?(.+)$/);
-      if (!match) continue;
+      // Parse: branch-name hash [remote-branch: ahead N, behind M] commit message
+      // Example: main abc1234 [origin/main: ahead 1] Fix work with commit
+      const match = clean.match(/^(\S+)\s+(\S+)\s+\[([^\]]+)\]\s*(.*)$/);
+      if (!match) {
+        // No tracking info - just branch and hash
+        const simpleMatch = clean.match(/^(\S+)\s+(\S+)\s*(.*)$/);
+        if (simpleMatch) {
+          const [, name, hash, message] = simpleMatch;
+          const isRemote = name.startsWith('remotes/');
+          branches.push({
+            name: isRemote ? name.replace('remotes/', '') : name,
+            current,
+            remote: isRemote,
+          });
+        }
+        continue;
+      }
 
       const [, name, hash, tracking, message] = match;
 
@@ -62,13 +76,12 @@ export class GitService {
       let ahead = 0;
       let behind = 0;
 
-      if (tracking) {
-        const trackingMatch = tracking.match(/^([^:]+)(?::\s*ahead\s*(\d+))?(?:,\s*behind\s*(\d+))?$/);
-        if (trackingMatch) {
-          upstream = trackingMatch[1];
-          ahead = parseInt(trackingMatch[2] || '0');
-          behind = parseInt(trackingMatch[3] || '0');
-        }
+      // Parse tracking: origin/main: ahead 1, behind 2
+      const trackingMatch = tracking.match(/^([^:]+)(?::\s*ahead\s*(\d+))?(?:,\s*behind\s*(\d+))?$/);
+      if (trackingMatch) {
+        upstream = trackingMatch[1];
+        ahead = parseInt(trackingMatch[2] || '0');
+        behind = parseInt(trackingMatch[3] || '0');
       }
 
       const isRemote = name.startsWith('remotes/');
@@ -90,8 +103,16 @@ export class GitService {
     await this.exec(['fetch', '--all', '--prune']);
   }
 
+  async fetchBranch(branch: string): Promise<void> {
+    await this.exec(['fetch', 'origin', branch]);
+  }
+
   async pullBranch(branch: string): Promise<void> {
     await this.exec(['pull', 'origin', branch]);
+  }
+
+  async pushBranch(branch: string): Promise<void> {
+    await this.exec(['push', 'origin', branch]);
   }
 
   async getCurrentBranch(): Promise<string> {
