@@ -4,6 +4,10 @@
   "description": "IDE-like Git experience for VSCode (branches, commits, blame, diff)",
   "version": "0.1.0",
   "publisher": "evgeny",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EvgenyGulyaev/git-ide.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -17,12 +21,17 @@
         {
           "id": "git-ide",
           "title": "Git IDE",
-          "icon": "$(git-branch)"
+          "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
       "git-ide": [
+        {
+          "id": "git-ide.changes",
+          "name": "Changes",
+          "type": "webview"
+        },
         {
           "id": "git-ide.branches",
           "name": "Branches"
@@ -94,6 +103,26 @@
         "icon": "$(git-branch)"
       },
       {
+        "command": "git-ide.fetch",
+        "title": "Fetch All Branches",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "git-ide.pullCurrent",
+        "title": "Pull Current Branch",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "git-ide.togglePinBranch",
+        "title": "Pin/Unpin Branch",
+        "icon": "$(star-empty)"
+      },
+      {
+        "command": "git-ide.unpinBranch",
+        "title": "Unpin Branch",
+        "icon": "$(star-full)"
+      },
+      {
         "command": "git-ide.openCommitPanel",
         "title": "Open Commit Panel",
         "icon": "$(git-commit)"
@@ -134,12 +163,49 @@
       {
         "command": "git-ide.rebaseContinue",
         "title": "Continue Rebase"
+      },
+      {
+        "command": "git-ide.refreshChanges",
+        "title": "Refresh Changes",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "git-ide.unstageFile",
+        "title": "Unstage File"
+      },
+      {
+        "command": "git-ide.stageAll",
+        "title": "Stage All"
+      },
+      {
+        "command": "git-ide.unstageAll",
+        "title": "Unstage All"
       }
     ],
     "menus": {
       "view/title": [
         {
+          "command": "git-ide.refreshChanges",
+          "when": "view == git-ide.changes",
+          "group": "navigation"
+        },
+        {
+          "command": "git-ide.stageAll",
+          "when": "view == git-ide.changes",
+          "group": "navigation"
+        },
+        {
+          "command": "git-ide.unstageAll",
+          "when": "view == git-ide.changes",
+          "group": "navigation"
+        },
+        {
           "command": "git-ide.refreshBranches",
+          "when": "view == git-ide.branches",
+          "group": "navigation"
+        },
+        {
+          "command": "git-ide.fetch",
           "when": "view == git-ide.branches",
           "group": "navigation"
         },
@@ -150,6 +216,21 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "git-ide.unstageFile",
+          "when": "view == git-ide.changes && viewItem == stagedFile",
+          "group": "inline"
+        },
+        {
+          "command": "git-ide.stageFile",
+          "when": "view == git-ide.changes && viewItem == unstagedFile",
+          "group": "inline"
+        },
+        {
+          "command": "git-ide.togglePinBranch",
+          "when": "view == git-ide.branches",
+          "group": "inline@1"
+        },
         {
           "command": "git-ide.checkoutBranch",
           "when": "view == git-ide.branches",

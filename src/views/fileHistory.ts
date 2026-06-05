@@ -1,6 +1,13 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { GitService } from '../git/service';
 import { Commit } from '../git/types';
+
+function toRelativePath(absolutePath: string): string {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) return absolutePath;
+  return path.relative(workspaceFolder.uri.fsPath, absolutePath);
+}
 
 export class FileHistoryItem extends vscode.TreeItem {
   constructor(
@@ -60,7 +67,6 @@ export class FileHistoryProvider implements vscode.TreeDataProvider<FileHistoryI
 
   async getChildren(): Promise<FileHistoryItem[]> {
     if (!this.filePath) {
-      // Try to get from active editor
       const editor = vscode.window.activeTextEditor;
       if (editor) {
         this.filePath = editor.document.uri.fsPath;
@@ -70,9 +76,10 @@ export class FileHistoryProvider implements vscode.TreeDataProvider<FileHistoryI
     }
 
     try {
-      const commits = await this.git.getFileCommits(this.filePath);
+      const relativePath = toRelativePath(this.filePath);
+      const commits = await this.git.getFileCommits(relativePath);
       return commits.map(c => new FileHistoryItem(c, this.filePath!));
-    } catch (error: any) {
+    } catch {
       return [];
     }
   }
@@ -122,24 +129,32 @@ export class LineHistoryProvider implements vscode.TreeDataProvider<LineHistoryI
   }
 
   async getChildren(): Promise<LineHistoryItem[]> {
-    if (!this.filePath) return [];
+    // Auto-detect from active editor if not explicitly set
+    if (!this.filePath || !this.line) {
+      const editor = vscode.window.activeTextEditor;
+      if (editor) {
+        this.filePath = editor.document.uri.fsPath;
+        this.line = editor.selection.active.line + 1;
+      } else {
+        return [];
+      }
+    }
 
     try {
-      // git log -L start,end:file gives line-specific history
+      const relativePath = toRelativePath(this.filePath);
       const format = '%H%n%an%n%ae%n%at%n%s%n';
       const args = [
         'log',
         `--format=${format}`,
         '-50',
         '--no-color',
-        `-L${this.line},${this.line}:${this.filePath}`,
+        `-L${this.line},${this.line}:${relativePath}`,
       ];
 
       const raw = await this.git['exec'](args);
       const commits = this.parseLineLog(raw);
       return commits.map(c => new LineHistoryItem(c, this.filePath!, this.line!));
     } catch {
-      // Fallback: show file history
       return [];
     }
   }

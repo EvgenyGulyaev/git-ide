@@ -137,7 +137,7 @@ export function parseChangedFiles(raw: string): ChangedFile[] {
 
   return raw.split('\n').filter(l => l.trim()).map(line => {
     const statusChar = line[0];
-    const rest = line.substring(3).trim();
+    const rest = line.substring(2).trim();
 
     let status: ChangedFile['status'];
     let path = rest;

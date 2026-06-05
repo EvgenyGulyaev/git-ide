@@ -19,9 +19,16 @@ export class GitService {
 
   private async exec(args: string[]): Promise<string> {
     try {
-      const { stdout } = await execAsync(`git ${args.join(' ')}`, {
+      // Quote arguments that contain spaces
+      const quoted = args.map(arg => {
+        if (arg.includes(' ') || arg.includes('"') || arg.includes("'")) {
+          return `"${arg.replace(/"/g, '\\"')}"`;
+        }
+        return arg;
+      });
+      const { stdout } = await execAsync(`git ${quoted.join(' ')}`, {
         cwd: this.cwd,
-        maxBuffer: 10 * 1024 * 1024, // 10MB
+        maxBuffer: 10 * 1024 * 1024,
       });
       return stdout;
     } catch (error: any) {
@@ -33,8 +40,58 @@ export class GitService {
   }
 
   async getBranches(): Promise<Branch[]> {
-    const raw = await this.exec(['branch', '-a', '--no-color']);
-    return parseBranches(raw);
+    const raw = await this.exec(['branch', '-vv', '--no-color']);
+    return this.parseBranchesWithTracking(raw);
+  }
+
+  private parseBranchesWithTracking(raw: string): Branch[] {
+    const branches: Branch[] = [];
+    const lines = raw.split('\n').filter(l => l.trim());
+
+    for (const line of lines) {
+      const current = line.startsWith('*');
+      const clean = line.replace(/^\*?\s+/, '');
+
+      // Parse: branch-name [remote-branch: ahead N, behind M] commit message
+      const match = clean.match(/^(\S+)\s+(\S+)\s+(?:\[(.+?)\]\s+)?(.+)$/);
+      if (!match) continue;
+
+      const [, name, hash, tracking, message] = match;
+
+      let upstream: string | undefined;
+      let ahead = 0;
+      let behind = 0;
+
+      if (tracking) {
+        const trackingMatch = tracking.match(/^([^:]+)(?::\s*ahead\s*(\d+))?(?:,\s*behind\s*(\d+))?$/);
+        if (trackingMatch) {
+          upstream = trackingMatch[1];
+          ahead = parseInt(trackingMatch[2] || '0');
+          behind = parseInt(trackingMatch[3] || '0');
+        }
+      }
+
+      const isRemote = name.startsWith('remotes/');
+
+      branches.push({
+        name: isRemote ? name.replace('remotes/', '') : name,
+        current,
+        remote: isRemote,
+        upstream,
+        ahead,
+        behind,
+      });
+    }
+
+    return branches;
+  }
+
+  async fetch(): Promise<void> {
+    await this.exec(['fetch', '--all', '--prune']);
+  }
+
+  async pullBranch(branch: string): Promise<void> {
+    await this.exec(['pull', 'origin', branch]);
   }
 
   async getCurrentBranch(): Promise<string> {

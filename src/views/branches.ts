@@ -2,20 +2,35 @@ import * as vscode from 'vscode';
 import { GitService } from '../git/service';
 import { Branch } from '../git/types';
 
+const PINNED_KEY = 'git-ide.pinnedBranches';
+
+// Folder item (Star / Branches)
+export class BranchFolder extends vscode.TreeItem {
+  constructor(label: string, icon: string, public readonly folderType: 'pinned' | 'local' | 'remote') {
+    super(label, vscode.TreeItemCollapsibleState.Expanded);
+    this.iconPath = new vscode.ThemeIcon(icon);
+    this.contextValue = 'folder';
+  }
+}
+
+// Branch item
 export class BranchItem extends vscode.TreeItem {
   constructor(
     public readonly branch: Branch,
-    public readonly collapsibleState: vscode.TreeItemCollapsibleState
+    public readonly pinned: boolean = false
   ) {
-    super(branch.name, collapsibleState);
+    super(branch.name, vscode.TreeItemCollapsibleState.None);
 
     this.tooltip = this.getTooltip();
     this.description = this.getDescription();
-    this.contextValue = 'branch';
+    this.contextValue = pinned ? 'pinnedBranch' : 'branch';
 
     if (branch.current) {
       this.iconPath = new vscode.ThemeIcon('git-branch', new vscode.ThemeColor('charts.green'));
-      this.label = `$(check) ${branch.name}`;
+    } else if (pinned) {
+      this.iconPath = new vscode.ThemeIcon('star-full', new vscode.ThemeColor('charts.yellow'));
+    } else if (branch.remote) {
+      this.iconPath = new vscode.ThemeIcon('cloud', new vscode.ThemeColor('charts.blue'));
     } else {
       this.iconPath = new vscode.ThemeIcon('git-branch');
     }
@@ -24,10 +39,11 @@ export class BranchItem extends vscode.TreeItem {
   private getTooltip(): string {
     const parts = [this.branch.name];
     if (this.branch.current) parts.push('(current)');
+    if (this.pinned) parts.push('📌 Pinned');
     if (this.branch.upstream) parts.push(`→ ${this.branch.upstream}`);
     if (this.branch.ahead) parts.push(`${this.branch.ahead} ahead`);
     if (this.branch.behind) parts.push(`${this.branch.behind} behind`);
-    return parts.join(' ');
+    return parts.join('\n');
   }
 
   private getDescription(): string {
@@ -38,47 +54,110 @@ export class BranchItem extends vscode.TreeItem {
   }
 }
 
-export class BranchesProvider implements vscode.TreeDataProvider<BranchItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<BranchItem | undefined | null | void>();
+type TreeItem = BranchFolder | BranchItem;
+
+export class BranchesProvider implements vscode.TreeDataProvider<TreeItem> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<TreeItem | undefined | null | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private git: GitService;
+  private state: vscode.Memento;
+  private allBranches: Branch[] = [];
 
-  constructor() {
+  constructor(state: vscode.Memento) {
     this.git = new GitService();
+    this.state = state;
   }
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
   }
 
-  getTreeItem(element: BranchItem): vscode.TreeItem {
+  getTreeItem(element: TreeItem): vscode.TreeItem {
     return element;
   }
 
-  async getChildren(element?: BranchItem): Promise<BranchItem[]> {
-    if (element) return [];
+  private getPinnedBranches(): string[] {
+    return this.state.get<string[]>(PINNED_KEY, []);
+  }
 
-    try {
-      const branches = await this.git.getBranches();
+  private async savePinnedBranches(pinned: string[]): Promise<void> {
+    await this.state.update(PINNED_KEY, pinned);
+  }
 
-      // Separate local and remote branches
-      const local = branches.filter(b => !b.remote);
-      const remote = branches.filter(b => b.remote);
+  async togglePin(item: BranchItem): Promise<void> {
+    const pinned = this.getPinnedBranches();
+    const index = pinned.indexOf(item.branch.name);
 
-      // Sort: current first, then alphabetical
-      local.sort((a, b) => {
-        if (a.current) return -1;
-        if (b.current) return 1;
-        return a.name.localeCompare(b.name);
-      });
-
-      // Return local branches (remote could be a subtree later)
-      return local.map(b => new BranchItem(b, vscode.TreeItemCollapsibleState.None));
-    } catch (error: any) {
-      vscode.window.showErrorMessage(`Git: ${error.message}`);
-      return [];
+    if (index >= 0) {
+      pinned.splice(index, 1);
+    } else {
+      pinned.push(item.branch.name);
     }
+
+    await this.savePinnedBranches(pinned);
+    this.refresh();
+  }
+
+  async getChildren(element?: TreeItem): Promise<TreeItem[]> {
+    // Root level: show folders
+    if (!element) {
+      try {
+        this.allBranches = await this.git.getBranches();
+      } catch (error: any) {
+        vscode.window.showErrorMessage(`Git: ${error.message}`);
+        return [];
+      }
+
+      const pinnedNames = this.getPinnedBranches();
+      const hasPinned = pinnedNames.length > 0;
+
+      const folders: TreeItem[] = [];
+
+      if (hasPinned) {
+        folders.push(new BranchFolder('★ Star', 'star-full', 'pinned'));
+      }
+      folders.push(new BranchFolder('Branches', 'git-branch', 'local'));
+
+      const remote = this.allBranches.filter(b => b.remote);
+      if (remote.length > 0) {
+        folders.push(new BranchFolder('Remote', 'cloud', 'remote'));
+      }
+
+      return folders;
+    }
+
+    // Children of folders
+    if (element instanceof BranchFolder) {
+      const pinnedNames = this.getPinnedBranches();
+
+      if (element.folderType === 'pinned') {
+        // Show pinned branches
+        const pinnedBranches = this.allBranches.filter(b => !b.remote && pinnedNames.includes(b.name));
+        pinnedBranches.sort((a, b) => a.name.localeCompare(b.name));
+        return pinnedBranches.map(b => new BranchItem(b, true));
+      }
+
+      if (element.folderType === 'local') {
+        // Show local branches (excluding pinned)
+        const local = this.allBranches.filter(b => !b.remote && !pinnedNames.includes(b.name));
+        local.sort((a, b) => {
+          if (a.current) return -1;
+          if (b.current) return 1;
+          return a.name.localeCompare(b.name);
+        });
+        return local.map(b => new BranchItem(b, false));
+      }
+
+      if (element.folderType === 'remote') {
+        // Show remote branches
+        const remote = this.allBranches.filter(b => b.remote);
+        remote.sort((a, b) => a.name.localeCompare(b.name));
+        return remote.map(b => new BranchItem(b, false));
+      }
+    }
+
+    return [];
   }
 
   async checkoutBranch(item: BranchItem): Promise<void> {
@@ -128,6 +207,27 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchItem> {
       vscode.window.showInformationMessage(`Deleted branch ${item.branch.name}`);
     } catch (error: any) {
       vscode.window.showErrorMessage(`Delete failed: ${error.message}`);
+    }
+  }
+
+  async fetch(): Promise<void> {
+    try {
+      await this.git.fetch();
+      this.refresh();
+      vscode.window.showInformationMessage('Fetched all branches');
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`Fetch failed: ${error.message}`);
+    }
+  }
+
+  async pullCurrent(): Promise<void> {
+    try {
+      const branch = await this.git.getCurrentBranch();
+      await this.git.pullBranch(branch);
+      this.refresh();
+      vscode.window.showInformationMessage(`Pulled ${branch}`);
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`Pull failed: ${error.message}`);
     }
   }
 }
