@@ -1,0 +1,211 @@
+{
+  "name": "git-ide",
+  "displayName": "Git IDE",
+  "description": "IDE-like Git experience for VSCode (branches, commits, blame, diff)",
+  "version": "0.1.0",
+  "publisher": "evgeny",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["SCM Providers"],
+  "keywords": ["git", "branch", "commit", "blame", "diff", "ide"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "git-ide",
+          "title": "Git IDE",
+          "icon": "$(git-branch)"
+        }
+      ]
+    },
+    "views": {
+      "git-ide": [
+        {
+          "id": "git-ide.branches",
+          "name": "Branches"
+        },
+        {
+          "id": "git-ide.commits",
+          "name": "Commits"
+        },
+        {
+          "id": "git-ide.fileHistory",
+          "name": "File History"
+        },
+        {
+          "id": "git-ide.lineHistory",
+          "name": "Line History"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "git-ide.refreshBranches",
+        "title": "Refresh Branches",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "git-ide.checkoutBranch",
+        "title": "Checkout Branch"
+      },
+      {
+        "command": "git-ide.createBranch",
+        "title": "Create Branch",
+        "icon": "$(add)"
+      },
+      {
+        "command": "git-ide.deleteBranch",
+        "title": "Delete Branch",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "git-ide.pull",
+        "title": "Pull",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "git-ide.push",
+        "title": "Push",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "git-ide.stash",
+        "title": "Stash Changes"
+      },
+      {
+        "command": "git-ide.stashPop",
+        "title": "Pop Stash"
+      },
+      {
+        "command": "git-ide.toggleBlame",
+        "title": "Toggle Git Blame",
+        "icon": "$(person)"
+      },
+      {
+        "command": "git-ide.showCommitDiff",
+        "title": "Show Commit Diff"
+      },
+      {
+        "command": "git-ide.branchSwitcher",
+        "title": "Switch Branch",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "git-ide.openCommitPanel",
+        "title": "Open Commit Panel",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "git-ide.openDiffViewer",
+        "title": "Open Diff Viewer"
+      },
+      {
+        "command": "git-ide.openMergeResolver",
+        "title": "Open Merge Resolver"
+      },
+      {
+        "command": "git-ide.openGitGraph",
+        "title": "Open Git Graph",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "git-ide.toggleInlineDiff",
+        "title": "Toggle Inline Diff"
+      },
+      {
+        "command": "git-ide.showFileHistory",
+        "title": "Show File History"
+      },
+      {
+        "command": "git-ide.showLineHistory",
+        "title": "Show Line History"
+      },
+      {
+        "command": "git-ide.stageFile",
+        "title": "Stage File"
+      },
+      {
+        "command": "git-ide.rebaseAbort",
+        "title": "Abort Rebase"
+      },
+      {
+        "command": "git-ide.rebaseContinue",
+        "title": "Continue Rebase"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "git-ide.refreshBranches",
+          "when": "view == git-ide.branches",
+          "group": "navigation"
+        },
+        {
+          "command": "git-ide.createBranch",
+          "when": "view == git-ide.branches",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "git-ide.checkoutBranch",
+          "when": "view == git-ide.branches",
+          "group": "inline"
+        },
+        {
+          "command": "git-ide.deleteBranch",
+          "when": "view == git-ide.branches && viewItem == branch"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "git-ide.pull",
+          "when": "git-ide:enabled"
+        },
+        {
+          "command": "git-ide.push",
+          "when": "git-ide:enabled"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Git IDE",
+      "properties": {
+        "git-ide.blame.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable git blame decorations in editor gutter"
+        },
+        "git-ide.blame.dateFormat": {
+          "type": "string",
+          "default": "YYYY-MM-DD",
+          "description": "Date format for blame annotations"
+        },
+        "git-ide.commits.limit": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum number of commits to show"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "watch": "npm run build -- --watch",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "esbuild": "^0.19.8",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.2",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
